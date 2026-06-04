@@ -3,94 +3,223 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Print Manager</title>
+    <title>SequencePrint — PDF Page Reorder & Organizer</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
-    <main class="shell">
-      <section class="workspace" aria-labelledby="page-title">
-        <div class="header">
-          <div>
-            <p class="eyebrow">Local PDF printing</p>
-            <h1 id="page-title">Print Manager</h1>
-          </div>
-          <button class="icon-button" id="resetButton" type="button" title="Reset">
-            <span aria-hidden="true">R</span>
-            <span class="sr-only">Reset</span>
-          </button>
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="logo-container">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="9" x2="15" y2="9"></line>
+            <line x1="9" y1="13" x2="15" y2="13"></line>
+            <line x1="9" y1="17" x2="11" y2="17"></line>
+          </svg>
         </div>
+        <span class="logo-text">SequencePrint</span>
+      </div>
+      <nav class="app-nav">
+        <a href="#" class="nav-item">Compressor</a>
+        <a href="#" class="nav-item">Merge</a>
+        <a href="#" class="nav-item active">Edit</a>
+      </nav>
+      <div class="header-right">
+        <button id="resetButton" class="icon-btn-reset" title="Reset All">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <polyline points="3 3 3 8 8 8"></polyline>
+          </svg>
+        </button>
+        <div class="profile-avatar" title="User Profile"></div>
+      </div>
+    </header>
 
-        <div class="layout">
-          <section class="panel upload-panel" aria-labelledby="upload-title">
-            <h2 id="upload-title">PDF</h2>
+    <!-- Main Workspace Container -->
+    <main class="workspace-container">
+      <div class="workspace-layout">
+        
+        <!-- Left Control Panel (Sidebar) -->
+        <aside class="sidebar">
+          
+          <!-- STEP 1: SOURCE FILE -->
+          <section class="sidebar-step-card" id="step-1-card">
+            <div class="step-header">
+              <span class="step-num">STEP 1:</span>
+              <span class="step-title">SOURCE FILE</span>
+            </div>
+            
+            <!-- Upload Dropzone (shown when no file loaded) -->
             <label class="dropzone" id="dropzone">
               <input id="pdfInput" type="file" accept="application/pdf,.pdf">
-              <span class="drop-icon" aria-hidden="true">PDF</span>
+              <div class="drop-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </div>
               <span class="drop-title">Choose a PDF file</span>
               <span class="drop-hint">or drop it here</span>
             </label>
-            <div class="file-state" id="fileState">No file selected</div>
-          </section>
 
-          <section class="panel" aria-labelledby="order-title">
-            <div class="section-heading">
-              <h2 id="order-title">Print Order</h2>
-              <span id="pageCountBadge" class="badge">0 pages</span>
-            </div>
-
-            <div class="quick-add">
-              <label>
-                <span>Page</span>
-                <input id="pageNumberInput" type="number" min="1" inputmode="numeric" placeholder="5">
-              </label>
-              <label>
-                <span>Copies</span>
-                <input id="copiesInput" type="number" min="1" value="1" inputmode="numeric">
-              </label>
-              <button id="addButton" type="button">Add</button>
-            </div>
-
-            <label class="sequence-label" for="sequenceInput">
-              Enter page numbers in the exact order to print
-            </label>
-            <textarea
-              id="sequenceInput"
-              rows="5"
-              placeholder="Example: 1 2 3 4 5 6 3 5 5 1"
-              spellcheck="false"
-            ></textarea>
-
-            <div class="actions secondary-actions">
-              <button id="appendAllButton" type="button">Add All Pages</button>
-              <button id="clearOrderButton" type="button">Clear Order</button>
-            </div>
-
-            <div class="order-preview" aria-live="polite">
-              <div class="preview-title">
-                <span>Preview</span>
-                <span id="orderSummary">No pages queued</span>
+            <!-- Loaded File Card (shown when file is loaded) -->
+            <div class="file-card" id="fileCard" style="display: none;">
+              <div class="file-pdf-icon">
+                <span>PDF</span>
               </div>
-              <div id="chips" class="chips"></div>
+              <div class="file-details">
+                <span class="file-name" id="fileNameText">filename.pdf</span>
+                <span class="file-info" id="fileInfoText">0.0 MB • 5 Pages</span>
+              </div>
+              <button class="file-remove-btn" id="removeFileBtn" type="button" title="Remove File">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
             </div>
           </section>
+
+          <!-- STEP 2: PRINT SEQUENCE -->
+          <section class="sidebar-step-card" id="step-2-card">
+            <div class="step-header">
+              <span class="step-num">STEP 2:</span>
+              <span class="step-title">PRINT SEQUENCE</span>
+            </div>
+            
+            <p class="step-description">
+              Enter the page numbers in the order you want them to appear. Repeated numbers will print that page multiple times.
+            </p>
+
+            <!-- Quick Add Helper -->
+            <details class="quick-add-details">
+              <summary class="quick-add-summary">Quick Add Helper</summary>
+              <div class="quick-add-content">
+                <div class="quick-add-grid">
+                  <div class="input-group">
+                    <label for="pageNumberInput">Page</label>
+                    <input id="pageNumberInput" type="number" min="1" inputmode="numeric" placeholder="1">
+                  </div>
+                  <div class="input-group">
+                    <label for="copiesInput">Copies</label>
+                    <input id="copiesInput" type="number" min="1" value="1" inputmode="numeric">
+                  </div>
+                  <button id="addButton" class="btn-add-item" type="button">Add</button>
+                </div>
+                <button id="appendAllButton" class="btn-secondary-full" type="button">Add All Pages</button>
+              </div>
+            </details>
+
+            <div class="textarea-container">
+              <textarea
+                id="sequenceInput"
+                placeholder="Example: 1 1 2 2 3"
+                spellcheck="false"
+              ></textarea>
+            </div>
+
+            <div class="step-2-footer">
+              <span class="job-total" id="orderSummary">No PDF loaded</span>
+              <button id="clearOrderButton" class="btn-clear-link" type="button">Clear All</button>
+            </div>
+          </section>
+
+          <!-- Primary Actions -->
+          <div class="sidebar-actions">
+            <button id="goButton" class="btn-primary-print" type="button" disabled>
+              <span>Print Sequence</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+              </svg>
+            </button>
+            <button id="previewButton" class="btn-secondary-preview" type="button" disabled>
+              <span>Generate PDF Preview</span>
+            </button>
+          </div>
+
+          <!-- Hidden components for standard backward compatibility -->
+          <span id="pageCountBadge" style="display: none;">0 pages</span>
+          <div id="fileState" style="display: none;">No file selected</div>
+        </aside>
+
+        <!-- Right Main Panel (Workspace Viewports) -->
+        <div class="main-content">
+          
+          <!-- Live Reorder Preview Container -->
+          <section class="preview-panel" id="cardsPreviewPanel">
+            <header class="preview-panel-header">
+              <h2 class="preview-title">Live Reorder Preview</h2>
+              <div class="preview-controls">
+                <button id="togglePdfViewBtn" class="control-btn" type="button">PDF Preview</button>
+                <button id="zoomFitBtn" class="control-btn active" type="button">Zoom: Fit</button>
+                <button id="gridViewBtn" class="control-btn" type="button">Grid View</button>
+              </div>
+            </header>
+
+            <!-- Status Indicator / Toast in Workspace -->
+            <div class="status-banner" id="statusBanner">
+              <span class="status-icon">ℹ️</span>
+              <span class="status-text" id="statusMessage">Upload a PDF and add page numbers to begin.</span>
+            </div>
+
+            <!-- Page Cards Workspace -->
+            <div class="cards-workspace-wrapper">
+              <div class="cards-workspace" id="cardsWorkspace">
+                <!-- Live Page Cards render here -->
+                <div class="empty-workspace-state">
+                  <div class="empty-state-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                  </div>
+                  <p>Your live page sequence preview will appear here.</p>
+                  <span>Upload a PDF and type page numbers in the sidebar.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Navigation / Pagination -->
+            <footer class="preview-panel-footer">
+              <button class="nav-arrow-btn" id="scrollLeftBtn" type="button" title="Scroll Left">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </button>
+              <span class="footer-total-pages" id="footerTotalText">Total: 0 pages</span>
+              <button class="nav-arrow-btn" id="scrollRightBtn" type="button" title="Scroll Right">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
+            </footer>
+          </section>
+
+          <!-- Real PDF Preview Drawer/Frame (hidden by default) -->
+          <section class="pdf-frame-panel" id="pdfFramePanel" style="display: none;">
+            <header class="preview-panel-header">
+              <h2 class="preview-title">Generated PDF View</h2>
+              <button id="closePdfViewBtn" class="control-btn" type="button">Back to Cards</button>
+            </header>
+            <iframe id="printFrame" class="print-frame" title="Generated PDF preview" hidden></iframe>
+          </section>
+
         </div>
-
-        <section class="panel output-panel" aria-labelledby="output-title">
-          <div>
-            <h2 id="output-title">Output</h2>
-            <p id="statusMessage">Upload a PDF and add page numbers to begin.</p>
-          </div>
-          <div class="actions">
-            <button id="previewButton" type="button" disabled>Generate Preview</button>
-            <button id="goButton" class="primary" type="button" disabled>Go</button>
-          </div>
-        </section>
-
-        <iframe id="printFrame" class="print-frame" title="Generated PDF preview" hidden></iframe>
-      </section>
+      </div>
     </main>
   </body>
 </html>

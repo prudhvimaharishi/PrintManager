@@ -4,6 +4,10 @@ const state = {
   pageCount: 0,
   outputUrl: "",
   outputBytes: null,
+  thumbnails: {}, // Cache of pageNumber -> canvas dataURL
+  viewMode: "cards", // "cards" or "pdf"
+  zoomFit: true,
+  gridView: false,
 };
 
 const elements = {
@@ -18,12 +22,28 @@ const elements = {
   appendAllButton: document.querySelector("#appendAllButton"),
   clearOrderButton: document.querySelector("#clearOrderButton"),
   resetButton: document.querySelector("#resetButton"),
-  chips: document.querySelector("#chips"),
+  chips: document.querySelector("#cardsWorkspace"), // Redirect chips to the workspace container
   orderSummary: document.querySelector("#orderSummary"),
   statusMessage: document.querySelector("#statusMessage"),
   previewButton: document.querySelector("#previewButton"),
   goButton: document.querySelector("#goButton"),
   printFrame: document.querySelector("#printFrame"),
+  
+  // New redressed elements
+  fileCard: document.querySelector("#fileCard"),
+  fileNameText: document.querySelector("#fileNameText"),
+  fileInfoText: document.querySelector("#fileInfoText"),
+  removeFileBtn: document.querySelector("#removeFileBtn"),
+  
+  togglePdfViewBtn: document.querySelector("#togglePdfViewBtn"),
+  zoomFitBtn: document.querySelector("#zoomFitBtn"),
+  gridViewBtn: document.querySelector("#gridViewBtn"),
+  closePdfViewBtn: document.querySelector("#closePdfViewBtn"),
+  cardsPreviewPanel: document.querySelector("#cardsPreviewPanel"),
+  pdfFramePanel: document.querySelector("#pdfFramePanel"),
+  scrollLeftBtn: document.querySelector("#scrollLeftBtn"),
+  scrollRightBtn: document.querySelector("#scrollRightBtn"),
+  footerTotalText: document.querySelector("#footerTotalText"),
 };
 
 function parseSequence() {
@@ -57,6 +77,15 @@ function clearGeneratedPdf() {
 function setStatus(message, type = "neutral") {
   elements.statusMessage.textContent = message;
   elements.statusMessage.dataset.type = type;
+  
+  const banner = document.querySelector("#statusBanner");
+  if (banner) {
+    banner.setAttribute("data-type", type);
+    const icon = banner.querySelector(".status-icon");
+    if (icon) {
+      icon.textContent = type === "error" ? "❌" : (type === "success" ? "✅" : "ℹ️");
+    }
+  }
 }
 
 function loadPdfPreview(url) {
@@ -91,35 +120,158 @@ function formatFileSize(bytes) {
   return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+// Render dynamic page cards instead of text chips
 function renderChips(pages) {
   elements.chips.replaceChildren();
 
-  if (pages.length === 0) {
-    const empty = document.createElement("span");
-    empty.className = "drop-hint";
-    empty.textContent = "Added pages will appear here.";
-    elements.chips.append(empty);
+  if (!state.originalBytes) {
+    // Show empty workspace state
+    const emptyState = document.createElement("div");
+    emptyState.className = "empty-workspace-state";
+    emptyState.innerHTML = `
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+      </div>
+      <p>Your live page sequence preview will appear here.</p>
+      <span>Upload a PDF and type page numbers in the sidebar.</span>
+    `;
+    elements.chips.append(emptyState);
+    elements.footerTotalText.textContent = "Total: 0 pages";
     return;
   }
 
-  pages.forEach((page, index) => {
-    const chip = document.createElement("span");
-    chip.className = `chip${isValidPage(page) ? "" : " invalid"}`;
-    chip.textContent = page;
+  if (pages.length === 0) {
+    const emptyState = document.createElement("div");
+    emptyState.className = "empty-workspace-state";
+    emptyState.innerHTML = `
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+      </div>
+      <p>No pages in print sequence.</p>
+      <span>Type page numbers in Step 2 to preview pages.</span>
+    `;
+    elements.chips.append(emptyState);
+    elements.footerTotalText.textContent = "Total: 0 pages";
+    return;
+  }
 
-    const removeButton = document.createElement("button");
-    removeButton.type = "button";
-    removeButton.title = `Remove page ${page}`;
-    removeButton.setAttribute("aria-label", `Remove page ${page}`);
-    removeButton.textContent = "x";
-    removeButton.addEventListener("click", () => {
+  elements.footerTotalText.textContent = `Total: ${pages.length} page${pages.length === 1 ? "" : "s"}`;
+
+  pages.forEach((page, index) => {
+    const isValid = isValidPage(page);
+    
+    // Create card container
+    const cardContainer = document.createElement("div");
+    cardContainer.className = "page-card-container";
+    cardContainer.setAttribute("draggable", "true");
+    cardContainer.dataset.index = index;
+
+    // Create card body
+    const card = document.createElement("div");
+    card.className = `page-card${isValid ? "" : " invalid-card"}`;
+
+    // Add thumbnail if available and valid
+    if (isValid && state.thumbnails[page]) {
+      const img = document.createElement("img");
+      img.className = "page-card-thumbnail";
+      img.src = state.thumbnails[page];
+      img.alt = `Page ${page} Thumbnail`;
+      card.appendChild(img);
+    }
+
+    // Large card number
+    const num = document.createElement("div");
+    num.className = "page-card-num";
+    num.textContent = page;
+    card.appendChild(num);
+
+    // Hover remove button
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "card-remove-btn";
+    removeBtn.type = "button";
+    removeBtn.title = `Remove page ${page} from sequence`;
+    removeBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    `;
+    removeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
       const nextPages = parseSequence();
       nextPages.splice(index, 1);
       setSequence(nextPages);
     });
+    card.appendChild(removeBtn);
 
-    chip.append(removeButton);
-    elements.chips.append(chip);
+    cardContainer.appendChild(card);
+
+    // POS XX label below card
+    const pos = document.createElement("div");
+    pos.className = "page-card-pos";
+    const posNum = String(index + 1).padStart(2, "0");
+    pos.textContent = `POS ${posNum}`;
+    cardContainer.appendChild(pos);
+
+    // Drag and Drop Event Listeners
+    cardContainer.addEventListener("dragstart", (e) => {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", index);
+      cardContainer.classList.add("dragging");
+    });
+
+    cardContainer.addEventListener("dragend", () => {
+      cardContainer.classList.remove("dragging");
+      document.querySelectorAll(".page-card-container").forEach(c => {
+        c.classList.remove("drag-over");
+      });
+    });
+
+    cardContainer.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      return false;
+    });
+
+    cardContainer.addEventListener("dragenter", () => {
+      if (!cardContainer.classList.contains("dragging")) {
+        cardContainer.classList.add("drag-over");
+      }
+    });
+
+    cardContainer.addEventListener("dragleave", () => {
+      cardContainer.classList.remove("drag-over");
+    });
+
+    cardContainer.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const sourceIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
+      const targetIndex = index;
+      
+      if (sourceIndex !== targetIndex) {
+        const nextPages = parseSequence();
+        const [movedPage] = nextPages.splice(sourceIndex, 1);
+        nextPages.splice(targetIndex, 0, movedPage);
+        setSequence(nextPages);
+      }
+      return false;
+    });
+
+    elements.chips.appendChild(cardContainer);
   });
 }
 
@@ -138,15 +290,58 @@ function updateUi() {
 
   if (!hasPdf) {
     elements.orderSummary.textContent = "No PDF loaded";
-  } else if (pages.length === 0) {
-    elements.orderSummary.textContent = "No pages queued";
-  } else if (invalidCount > 0) {
-    elements.orderSummary.textContent = `${invalidCount} invalid page${invalidCount === 1 ? "" : "s"}`;
+    elements.fileCard.style.display = "none";
+    elements.dropzone.style.display = "flex";
   } else {
-    elements.orderSummary.textContent = `${pages.length} page${pages.length === 1 ? "" : "s"} queued`;
+    elements.dropzone.style.display = "none";
+    elements.fileCard.style.display = "flex";
+    elements.fileNameText.textContent = state.fileName;
+    elements.fileInfoText.textContent = `${formatFileSize(state.originalBytes.byteLength)} • ${state.pageCount} Page${state.pageCount === 1 ? "" : "s"}`;
+    
+    if (pages.length === 0) {
+      elements.orderSummary.textContent = "Total Pages in Job: 0";
+    } else if (invalidCount > 0) {
+      elements.orderSummary.textContent = `${invalidCount} invalid page${invalidCount === 1 ? "" : "s"}`;
+    } else {
+      elements.orderSummary.textContent = `Total Pages in Job: ${pages.length}`;
+    }
   }
 
   renderChips(pages);
+}
+
+// Generate page thumbnails in the background when a PDF is loaded
+async function generatePdfThumbnails(bytes) {
+  if (!window.pdfjsLib) return;
+  
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  
+  try {
+    const loadingTask = pdfjsLib.getDocument({ data: bytes.slice(0) });
+    const pdf = await loadingTask.promise;
+    
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      // Check if user loaded a new file in the meantime
+      if (bytes !== state.originalBytes) break;
+
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 0.25 });
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d", { alpha: false });
+      
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      
+      await page.render({ canvasContext: context, viewport }).promise;
+      state.thumbnails[pageNumber] = canvas.toDataURL("image/jpeg", 0.8);
+      
+      // Update UI incrementally as thumbnails generate
+      updateUi();
+    }
+  } catch (error) {
+    console.error("Error generating thumbnails:", error);
+  }
 }
 
 async function loadPdf(file) {
@@ -173,11 +368,16 @@ async function loadPdf(file) {
     state.fileName = file.name;
     state.originalBytes = bytes;
     state.pageCount = pdf.getPageCount();
+    state.thumbnails = {}; // Reset thumbnails cache
 
     elements.fileState.textContent = `${file.name} - ${state.pageCount} page${state.pageCount === 1 ? "" : "s"} - ${formatFileSize(file.size)}`;
     elements.sequenceInput.value = "";
     elements.pageNumberInput.value = "";
-    setStatus("Add page numbers in the order you want them printed.");
+    
+    setStatus("Add page numbers in the order you want them printed.", "success");
+    
+    // Trigger background rendering of thumbnails
+    generatePdfThumbnails(bytes);
   } catch (error) {
     state.fileName = "";
     state.originalBytes = null;
@@ -214,7 +414,7 @@ function addPagesFromControls() {
   pages.push(...Array.from({ length: copies }, () => page));
   setSequence(pages);
   elements.pageNumberInput.select();
-  setStatus(`Added page ${page}${copies > 1 ? ` ${copies} times` : ""}.`);
+  setStatus(`Added page ${page}${copies > 1 ? ` ${copies} times` : ""}.`, "success");
 }
 
 async function generatePdf() {
@@ -256,7 +456,7 @@ async function generatePdf() {
   state.outputUrl = URL.createObjectURL(blob);
   await loadPdfPreview(state.outputUrl);
 
-  setStatus(`Generated ${pages.length} page${pages.length === 1 ? "" : "s"} from ${state.fileName}.`);
+  setStatus(`Generated ${pages.length} page${pages.length === 1 ? "" : "s"} from ${state.fileName}.`, "success");
   return state.outputUrl;
 }
 
@@ -400,7 +600,7 @@ async function printPdf() {
     printWindow.document.write("<p>Preparing print screen...</p>");
     const images = await renderPrintImages(state.outputBytes);
     writePrintDocument(printWindow, images);
-    setStatus("Print dialog opened for the reordered PDF.");
+    setStatus("Print dialog opened for the reordered PDF.", "success");
   } catch (error) {
     if (printWindow) {
       printWindow.close();
@@ -415,15 +615,48 @@ function resetAll() {
   state.fileName = "";
   state.originalBytes = null;
   state.pageCount = 0;
+  state.thumbnails = {}; // Reset thumbnails cache
+  
   elements.pdfInput.value = "";
   elements.pageNumberInput.value = "";
   elements.copiesInput.value = "1";
   elements.sequenceInput.value = "";
   elements.fileState.textContent = "No file selected";
+  
+  // Reset view mode if pdf panel is active
+  showCardsView();
+  
   setStatus("Upload a PDF and add page numbers to begin.");
   updateUi();
 }
 
+// Workspace UI control actions
+function showCardsView() {
+  state.viewMode = "cards";
+  elements.cardsPreviewPanel.style.display = "flex";
+  elements.pdfFramePanel.style.display = "none";
+  elements.togglePdfViewBtn.classList.remove("active");
+}
+
+async function showPdfView() {
+  if (!state.originalBytes || parseSequence().length === 0) {
+    setStatus("Please upload a PDF and create a sequence first.", "error");
+    return;
+  }
+  
+  setStatus("Generating PDF preview...");
+  try {
+    await generatePdf();
+    state.viewMode = "pdf";
+    elements.cardsPreviewPanel.style.display = "none";
+    elements.pdfFramePanel.style.display = "flex";
+    elements.togglePdfViewBtn.classList.add("active");
+  } catch (error) {
+    setStatus(`Failed to generate preview: ${error.message}`, "error");
+  }
+}
+
+// Wire up events
 elements.pdfInput.addEventListener("change", (event) => {
   loadPdf(event.target.files[0]);
 });
@@ -457,7 +690,7 @@ elements.appendAllButton.addEventListener("click", () => {
   }
 
   setSequence(Array.from({ length: state.pageCount }, (_, index) => index + 1));
-  setStatus("Added all pages in normal order.");
+  setStatus("Added all pages in normal order.", "success");
 });
 
 elements.clearOrderButton.addEventListener("click", () => {
@@ -467,8 +700,54 @@ elements.clearOrderButton.addEventListener("click", () => {
 });
 
 elements.resetButton.addEventListener("click", resetAll);
+elements.removeFileBtn.addEventListener("click", resetAll);
 elements.sequenceInput.addEventListener("input", updateUi);
 elements.previewButton.addEventListener("click", previewPdf);
 elements.goButton.addEventListener("click", printPdf);
 
+// Horizontal scroll buttons
+elements.scrollLeftBtn.addEventListener("click", () => {
+  elements.chips.scrollBy({ left: -300, behavior: "smooth" });
+});
+
+elements.scrollRightBtn.addEventListener("click", () => {
+  elements.chips.scrollBy({ left: 300, behavior: "smooth" });
+});
+
+// Zoom & view mode controls
+elements.zoomFitBtn.addEventListener("click", () => {
+  state.zoomFit = !state.zoomFit;
+  elements.zoomFitBtn.classList.toggle("active", state.zoomFit);
+  elements.chips.classList.toggle("zoom-fit", state.zoomFit);
+});
+
+elements.gridViewBtn.addEventListener("click", () => {
+  state.gridView = !state.gridView;
+  elements.gridViewBtn.classList.toggle("active", state.gridView);
+  elements.chips.classList.toggle("grid-mode", state.gridView);
+  
+  // Hide scroll buttons in grid mode
+  const footer = document.querySelector(".preview-panel-footer");
+  if (state.gridView) {
+    elements.scrollLeftBtn.style.visibility = "hidden";
+    elements.scrollRightBtn.style.visibility = "hidden";
+  } else {
+    elements.scrollLeftBtn.style.visibility = "visible";
+    elements.scrollRightBtn.style.visibility = "visible";
+  }
+});
+
+elements.togglePdfViewBtn.addEventListener("click", () => {
+  if (state.viewMode === "cards") {
+    showPdfView();
+  } else {
+    showCardsView();
+  }
+});
+
+elements.closePdfViewBtn.addEventListener("click", showCardsView);
+
+// Initial UI load
 updateUi();
+// Trigger default active states
+elements.chips.classList.add("zoom-fit");
