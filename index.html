@@ -119,6 +119,20 @@
               </div>
             </details>
 
+            <!-- Saved Sequences Helper -->
+            <details class="saved-sequences-details">
+              <summary class="saved-sequences-summary">Saved Sequences</summary>
+              <div class="saved-sequences-content">
+                <div class="save-current-group">
+                  <input id="saveSequenceNameInput" type="text" placeholder="Name (e.g., Duplicates)" maxlength="30">
+                  <button id="saveSequenceBtn" class="btn-save-item" type="button">Save</button>
+                </div>
+                <ul class="saved-sequences-list" id="savedSequencesList">
+                  <li class="empty-list-message">No saved sequences yet.</li>
+                </ul>
+              </div>
+            </details>
+
             <div class="textarea-container">
               <textarea
                 id="sequenceInput"

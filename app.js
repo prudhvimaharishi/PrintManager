@@ -44,6 +44,9 @@ const elements = {
   scrollLeftBtn: document.querySelector("#scrollLeftBtn"),
   scrollRightBtn: document.querySelector("#scrollRightBtn"),
   footerTotalText: document.querySelector("#footerTotalText"),
+  saveSequenceNameInput: document.querySelector("#saveSequenceNameInput"),
+  saveSequenceBtn: document.querySelector("#saveSequenceBtn"),
+  savedSequencesList: document.querySelector("#savedSequencesList"),
 };
 
 function parseSequence() {
@@ -747,7 +750,140 @@ elements.togglePdfViewBtn.addEventListener("click", () => {
 
 elements.closePdfViewBtn.addEventListener("click", showCardsView);
 
+// Local Storage keys & routines for sequence saving
+const STORAGE_KEY = "print_manager_saved_sequences";
+
+function loadSavedSequencesFromStorage() {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    console.error("Error reading from localStorage", e);
+    return [];
+  }
+}
+
+function saveSavedSequencesToStorage(sequences) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sequences));
+  } catch (e) {
+    console.error("Error writing to localStorage", e);
+  }
+}
+
+function renderSavedSequences() {
+  const list = elements.savedSequencesList;
+  list.replaceChildren();
+  
+  const sequences = loadSavedSequencesFromStorage();
+  
+  if (sequences.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "empty-list-message";
+    empty.textContent = "No saved sequences yet.";
+    list.appendChild(empty);
+    return;
+  }
+  
+  sequences.forEach((item, index) => {
+    const li = document.createElement("li");
+    li.className = "saved-item";
+    
+    const info = document.createElement("div");
+    info.className = "saved-item-info";
+    
+    const name = document.createElement("span");
+    name.className = "saved-item-name";
+    name.textContent = item.name;
+    info.appendChild(name);
+    
+    const seq = document.createElement("span");
+    seq.className = "saved-item-seq";
+    seq.textContent = item.sequence;
+    info.appendChild(seq);
+    
+    li.appendChild(info);
+    
+    const actions = document.createElement("div");
+    actions.className = "saved-item-actions";
+    
+    const loadBtn = document.createElement("button");
+    loadBtn.className = "btn-item-load";
+    loadBtn.type = "button";
+    loadBtn.textContent = "Load";
+    loadBtn.addEventListener("click", () => {
+      elements.sequenceInput.value = item.sequence;
+      updateUi();
+      setStatus(`Loaded sequence "${item.name}".`, "success");
+    });
+    actions.appendChild(loadBtn);
+    
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn-item-delete";
+    delBtn.type = "button";
+    delBtn.title = "Delete sequence";
+    delBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        <line x1="10" y1="11" x2="10" y2="17"></line>
+        <line x1="14" y1="11" x2="14" y2="17"></line>
+      </svg>
+    `;
+    delBtn.addEventListener("click", () => {
+      const current = loadSavedSequencesFromStorage();
+      current.splice(index, 1);
+      saveSavedSequencesToStorage(current);
+      renderSavedSequences();
+      setStatus(`Deleted sequence "${item.name}".`);
+    });
+    actions.appendChild(delBtn);
+    
+    li.appendChild(actions);
+    list.appendChild(li);
+  });
+}
+
+function handleSaveSequence() {
+  const name = elements.saveSequenceNameInput.value.trim();
+  const seq = elements.sequenceInput.value.trim();
+  
+  if (!seq) {
+    setStatus("Cannot save an empty sequence.", "error");
+    return;
+  }
+  
+  if (!name) {
+    setStatus("Please enter a name for the sequence.", "error");
+    elements.saveSequenceNameInput.focus();
+    return;
+  }
+  
+  const current = loadSavedSequencesFromStorage();
+  
+  const existingIndex = current.findIndex(item => item.name.toLowerCase() === name.toLowerCase());
+  if (existingIndex !== -1) {
+    current[existingIndex].sequence = seq;
+    setStatus(`Updated sequence "${name}".`, "success");
+  } else {
+    current.push({ name, sequence: seq });
+    setStatus(`Saved sequence "${name}".`, "success");
+  }
+  
+  saveSavedSequencesToStorage(current);
+  elements.saveSequenceNameInput.value = "";
+  renderSavedSequences();
+}
+
+elements.saveSequenceBtn.addEventListener("click", handleSaveSequence);
+elements.saveSequenceNameInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    handleSaveSequence();
+  }
+});
+
 // Initial UI load
 updateUi();
+renderSavedSequences();
 // Trigger default active states
 elements.chips.classList.add("zoom-fit");
