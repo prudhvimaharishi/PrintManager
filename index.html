@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Print Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="workspace" aria-labelledby="page-title">
+        <div class="header">
+          <div>
+            <p class="eyebrow">Local PDF printing</p>
+            <h1 id="page-title">Print Manager</h1>
+          </div>
+          <button class="icon-button" id="resetButton" type="button" title="Reset">
+            <span aria-hidden="true">R</span>
+            <span class="sr-only">Reset</span>
+          </button>
+        </div>
+
+        <div class="layout">
+          <section class="panel upload-panel" aria-labelledby="upload-title">
+            <h2 id="upload-title">PDF</h2>
+            <label class="dropzone" id="dropzone">
+              <input id="pdfInput" type="file" accept="application/pdf,.pdf">
+              <span class="drop-icon" aria-hidden="true">PDF</span>
+              <span class="drop-title">Choose a PDF file</span>
+              <span class="drop-hint">or drop it here</span>
+            </label>
+            <div class="file-state" id="fileState">No file selected</div>
+          </section>
+
+          <section class="panel" aria-labelledby="order-title">
+            <div class="section-heading">
+              <h2 id="order-title">Print Order</h2>
+              <span id="pageCountBadge" class="badge">0 pages</span>
+            </div>
+
+            <div class="quick-add">
+              <label>
+                <span>Page</span>
+                <input id="pageNumberInput" type="number" min="1" inputmode="numeric" placeholder="5">
+              </label>
+              <label>
+                <span>Copies</span>
+                <input id="copiesInput" type="number" min="1" value="1" inputmode="numeric">
+              </label>
+              <button id="addButton" type="button">Add</button>
+            </div>
+
+            <label class="sequence-label" for="sequenceInput">
+              Enter page numbers in the exact order to print
+            </label>
+            <textarea
+              id="sequenceInput"
+              rows="5"
+              placeholder="Example: 1 2 3 4 5 6 3 5 5 1"
+              spellcheck="false"
+            ></textarea>
+
+            <div class="actions secondary-actions">
+              <button id="appendAllButton" type="button">Add All Pages</button>
+              <button id="clearOrderButton" type="button">Clear Order</button>
+            </div>
+
+            <div class="order-preview" aria-live="polite">
+              <div class="preview-title">
+                <span>Preview</span>
+                <span id="orderSummary">No pages queued</span>
+              </div>
+              <div id="chips" class="chips"></div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel output-panel" aria-labelledby="output-title">
+          <div>
+            <h2 id="output-title">Output</h2>
+            <p id="statusMessage">Upload a PDF and add page numbers to begin.</p>
+          </div>
+          <div class="actions">
+            <button id="previewButton" type="button" disabled>Generate Preview</button>
+            <button id="goButton" class="primary" type="button" disabled>Go</button>
+          </div>
+        </section>
+
+        <iframe id="printFrame" class="print-frame" title="Generated PDF preview" hidden></iframe>
+      </section>
+    </main>
+  </body>
+</html>
