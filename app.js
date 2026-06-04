@@ -10,44 +10,7 @@ const state = {
   gridView: false,
 };
 
-const elements = {
-  pdfInput: document.querySelector("#pdfInput"),
-  dropzone: document.querySelector("#dropzone"),
-  fileState: document.querySelector("#fileState"),
-  pageCountBadge: document.querySelector("#pageCountBadge"),
-  pageNumberInput: document.querySelector("#pageNumberInput"),
-  copiesInput: document.querySelector("#copiesInput"),
-  addButton: document.querySelector("#addButton"),
-  sequenceInput: document.querySelector("#sequenceInput"),
-  appendAllButton: document.querySelector("#appendAllButton"),
-  clearOrderButton: document.querySelector("#clearOrderButton"),
-  resetButton: document.querySelector("#resetButton"),
-  chips: document.querySelector("#cardsWorkspace"), // Redirect chips to the workspace container
-  orderSummary: document.querySelector("#orderSummary"),
-  statusMessage: document.querySelector("#statusMessage"),
-  previewButton: document.querySelector("#previewButton"),
-  goButton: document.querySelector("#goButton"),
-  printFrame: document.querySelector("#printFrame"),
-  
-  // New redressed elements
-  fileCard: document.querySelector("#fileCard"),
-  fileNameText: document.querySelector("#fileNameText"),
-  fileInfoText: document.querySelector("#fileInfoText"),
-  removeFileBtn: document.querySelector("#removeFileBtn"),
-  
-  togglePdfViewBtn: document.querySelector("#togglePdfViewBtn"),
-  zoomFitBtn: document.querySelector("#zoomFitBtn"),
-  gridViewBtn: document.querySelector("#gridViewBtn"),
-  closePdfViewBtn: document.querySelector("#closePdfViewBtn"),
-  cardsPreviewPanel: document.querySelector("#cardsPreviewPanel"),
-  pdfFramePanel: document.querySelector("#pdfFramePanel"),
-  scrollLeftBtn: document.querySelector("#scrollLeftBtn"),
-  scrollRightBtn: document.querySelector("#scrollRightBtn"),
-  footerTotalText: document.querySelector("#footerTotalText"),
-  saveSequenceNameInput: document.querySelector("#saveSequenceNameInput"),
-  saveSequenceBtn: document.querySelector("#saveSequenceBtn"),
-  savedSequencesList: document.querySelector("#savedSequencesList"),
-};
+const elements = {};
 
 function parseSequence() {
   return elements.sequenceInput.value
@@ -659,96 +622,146 @@ async function showPdfView() {
   }
 }
 
-// Wire up events
-elements.pdfInput.addEventListener("change", (event) => {
-  loadPdf(event.target.files[0]);
-});
+// Initialize elements and wire up events once the DOM is fully loaded
+document.addEventListener("DOMContentLoaded", () => {
+  elements.pdfInput = document.querySelector("#pdfInput");
+  elements.dropzone = document.querySelector("#dropzone");
+  elements.fileState = document.querySelector("#fileState");
+  elements.pageCountBadge = document.querySelector("#pageCountBadge");
+  elements.pageNumberInput = document.querySelector("#pageNumberInput");
+  elements.copiesInput = document.querySelector("#copiesInput");
+  elements.addButton = document.querySelector("#addButton");
+  elements.sequenceInput = document.querySelector("#sequenceInput");
+  elements.appendAllButton = document.querySelector("#appendAllButton");
+  elements.clearOrderButton = document.querySelector("#clearOrderButton");
+  elements.resetButton = document.querySelector("#resetButton");
+  elements.chips = document.querySelector("#cardsWorkspace");
+  elements.orderSummary = document.querySelector("#orderSummary");
+  elements.statusMessage = document.querySelector("#statusMessage");
+  elements.previewButton = document.querySelector("#previewButton");
+  elements.goButton = document.querySelector("#goButton");
+  elements.printFrame = document.querySelector("#printFrame");
+  elements.fileCard = document.querySelector("#fileCard");
+  elements.fileNameText = document.querySelector("#fileNameText");
+  elements.fileInfoText = document.querySelector("#fileInfoText");
+  elements.removeFileBtn = document.querySelector("#removeFileBtn");
+  elements.togglePdfViewBtn = document.querySelector("#togglePdfViewBtn");
+  elements.zoomFitBtn = document.querySelector("#zoomFitBtn");
+  elements.gridViewBtn = document.querySelector("#gridViewBtn");
+  elements.closePdfViewBtn = document.querySelector("#closePdfViewBtn");
+  elements.cardsPreviewPanel = document.querySelector("#cardsPreviewPanel");
+  elements.pdfFramePanel = document.querySelector("#pdfFramePanel");
+  elements.scrollLeftBtn = document.querySelector("#scrollLeftBtn");
+  elements.scrollRightBtn = document.querySelector("#scrollRightBtn");
+  elements.footerTotalText = document.querySelector("#footerTotalText");
+  elements.saveSequenceNameInput = document.querySelector("#saveSequenceNameInput");
+  elements.saveSequenceBtn = document.querySelector("#saveSequenceBtn");
+  elements.savedSequencesList = document.querySelector("#savedSequencesList");
 
-elements.dropzone.addEventListener("dragover", (event) => {
-  event.preventDefault();
-  elements.dropzone.classList.add("dragging");
-});
+  // Wire up events
+  elements.pdfInput.addEventListener("change", (event) => {
+    loadPdf(event.target.files[0]);
+  });
 
-elements.dropzone.addEventListener("dragleave", () => {
-  elements.dropzone.classList.remove("dragging");
-});
+  elements.dropzone.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    elements.dropzone.classList.add("dragging");
+  });
 
-elements.dropzone.addEventListener("drop", (event) => {
-  event.preventDefault();
-  elements.dropzone.classList.remove("dragging");
-  loadPdf(event.dataTransfer.files[0]);
-});
+  elements.dropzone.addEventListener("dragleave", () => {
+    elements.dropzone.classList.remove("dragging");
+  });
 
-elements.addButton.addEventListener("click", addPagesFromControls);
-elements.pageNumberInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    addPagesFromControls();
-  }
-});
+  elements.dropzone.addEventListener("drop", (event) => {
+    event.preventDefault();
+    elements.dropzone.classList.remove("dragging");
+    loadPdf(event.dataTransfer.files[0]);
+  });
 
-elements.appendAllButton.addEventListener("click", () => {
-  if (!state.pageCount) {
-    setStatus("Upload a PDF before adding pages.", "error");
-    return;
-  }
+  elements.addButton.addEventListener("click", addPagesFromControls);
+  elements.pageNumberInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      addPagesFromControls();
+    }
+  });
 
-  setSequence(Array.from({ length: state.pageCount }, (_, index) => index + 1));
-  setStatus("Added all pages in normal order.", "success");
-});
+  elements.appendAllButton.addEventListener("click", () => {
+    if (!state.pageCount) {
+      setStatus("Upload a PDF before adding pages.", "error");
+      return;
+    }
 
-elements.clearOrderButton.addEventListener("click", () => {
-  elements.sequenceInput.value = "";
-  setStatus("Print order cleared.");
+    setSequence(Array.from({ length: state.pageCount }, (_, index) => index + 1));
+    setStatus("Added all pages in normal order.", "success");
+  });
+
+  elements.clearOrderButton.addEventListener("click", () => {
+    elements.sequenceInput.value = "";
+    setStatus("Print order cleared.");
+    updateUi();
+  });
+
+  elements.resetButton.addEventListener("click", resetAll);
+  elements.removeFileBtn.addEventListener("click", resetAll);
+  elements.sequenceInput.addEventListener("input", updateUi);
+  elements.previewButton.addEventListener("click", previewPdf);
+  elements.goButton.addEventListener("click", printPdf);
+
+  // Horizontal scroll buttons
+  elements.scrollLeftBtn.addEventListener("click", () => {
+    elements.chips.scrollBy({ left: -300, behavior: "smooth" });
+  });
+
+  elements.scrollRightBtn.addEventListener("click", () => {
+    elements.chips.scrollBy({ left: 300, behavior: "smooth" });
+  });
+
+  // Zoom & view mode controls
+  elements.zoomFitBtn.addEventListener("click", () => {
+    state.zoomFit = !state.zoomFit;
+    elements.zoomFitBtn.classList.toggle("active", state.zoomFit);
+    elements.chips.classList.toggle("zoom-fit", state.zoomFit);
+  });
+
+  elements.gridViewBtn.addEventListener("click", () => {
+    state.gridView = !state.gridView;
+    elements.gridViewBtn.classList.toggle("active", state.gridView);
+    elements.chips.classList.toggle("grid-mode", state.gridView);
+    
+    // Hide scroll buttons in grid mode
+    const footer = document.querySelector(".preview-panel-footer");
+    if (state.gridView) {
+      elements.scrollLeftBtn.style.visibility = "hidden";
+      elements.scrollRightBtn.style.visibility = "hidden";
+    } else {
+      elements.scrollLeftBtn.style.visibility = "visible";
+      elements.scrollRightBtn.style.visibility = "visible";
+    }
+  });
+
+  elements.togglePdfViewBtn.addEventListener("click", () => {
+    if (state.viewMode === "cards") {
+      showPdfView();
+    } else {
+      showCardsView();
+    }
+  });
+
+  elements.closePdfViewBtn.addEventListener("click", showCardsView);
+
+  elements.saveSequenceBtn.addEventListener("click", handleSaveSequence);
+  elements.saveSequenceNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      handleSaveSequence();
+    }
+  });
+
+  // Initial UI load
   updateUi();
+  renderSavedSequences();
+  // Trigger default active states
+  elements.chips.classList.add("zoom-fit");
 });
-
-elements.resetButton.addEventListener("click", resetAll);
-elements.removeFileBtn.addEventListener("click", resetAll);
-elements.sequenceInput.addEventListener("input", updateUi);
-elements.previewButton.addEventListener("click", previewPdf);
-elements.goButton.addEventListener("click", printPdf);
-
-// Horizontal scroll buttons
-elements.scrollLeftBtn.addEventListener("click", () => {
-  elements.chips.scrollBy({ left: -300, behavior: "smooth" });
-});
-
-elements.scrollRightBtn.addEventListener("click", () => {
-  elements.chips.scrollBy({ left: 300, behavior: "smooth" });
-});
-
-// Zoom & view mode controls
-elements.zoomFitBtn.addEventListener("click", () => {
-  state.zoomFit = !state.zoomFit;
-  elements.zoomFitBtn.classList.toggle("active", state.zoomFit);
-  elements.chips.classList.toggle("zoom-fit", state.zoomFit);
-});
-
-elements.gridViewBtn.addEventListener("click", () => {
-  state.gridView = !state.gridView;
-  elements.gridViewBtn.classList.toggle("active", state.gridView);
-  elements.chips.classList.toggle("grid-mode", state.gridView);
-  
-  // Hide scroll buttons in grid mode
-  const footer = document.querySelector(".preview-panel-footer");
-  if (state.gridView) {
-    elements.scrollLeftBtn.style.visibility = "hidden";
-    elements.scrollRightBtn.style.visibility = "hidden";
-  } else {
-    elements.scrollLeftBtn.style.visibility = "visible";
-    elements.scrollRightBtn.style.visibility = "visible";
-  }
-});
-
-elements.togglePdfViewBtn.addEventListener("click", () => {
-  if (state.viewMode === "cards") {
-    showPdfView();
-  } else {
-    showCardsView();
-  }
-});
-
-elements.closePdfViewBtn.addEventListener("click", showCardsView);
 
 // Local Storage keys & routines for sequence saving
 const STORAGE_KEY = "print_manager_saved_sequences";
