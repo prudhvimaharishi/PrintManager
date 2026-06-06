@@ -389,7 +389,7 @@ function addPagesFromControls() {
   setStatus(`Added page ${page}${copies > 1 ? ` ${copies} times` : ""}.`, "success");
 }
 
-async function generatePdf() {
+async function generatePdf({ renderPreview = true } = {}) {
   if (!window.PDFLib) {
     throw new Error("PDF tools did not load. Check your internet connection and refresh.");
   }
@@ -414,9 +414,12 @@ async function generatePdf() {
     ignoreEncryption: true,
   });
   const outputPdf = await PDFLib.PDFDocument.create();
+  const copiedPages = await outputPdf.copyPages(
+    sourcePdf,
+    pages.map((pageNumber) => pageNumber - 1),
+  );
 
-  for (const pageNumber of pages) {
-    const [copiedPage] = await outputPdf.copyPages(sourcePdf, [pageNumber - 1]);
+  for (const copiedPage of copiedPages) {
     outputPdf.addPage(copiedPage);
   }
 
@@ -424,7 +427,9 @@ async function generatePdf() {
 
   clearGeneratedPdf();
   state.outputBytes = outputBytes;
-  await loadPdfPreview(outputBytes);
+  if (renderPreview) {
+    await loadPdfPreview(outputBytes);
+  }
 
   setStatus(`Generated ${pages.length} page${pages.length === 1 ? "" : "s"} from ${state.fileName}.`, "success");
   return outputBytes;
@@ -452,7 +457,7 @@ function escapeHtml(value) {
   });
 }
 
-async function renderPrintImages(pdfBytes) {
+async function renderPrintImages(pdfBytes, pageKeys = []) {
   if (!window.pdfjsLib) {
     throw new Error("Print renderer did not load. Check your internet connection and refresh.");
   }
@@ -463,8 +468,15 @@ async function renderPrintImages(pdfBytes) {
   const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice(0) });
   const pdf = await loadingTask.promise;
   const images = [];
+  const imageCache = new Map();
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const pageKey = pageKeys[pageNumber - 1];
+    if (pageKey !== undefined && imageCache.has(pageKey)) {
+      images.push(imageCache.get(pageKey));
+      continue;
+    }
+
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 2 });
     const canvas = document.createElement("canvas");
@@ -473,11 +485,16 @@ async function renderPrintImages(pdfBytes) {
     canvas.width = Math.ceil(viewport.width);
     canvas.height = Math.ceil(viewport.height);
     await page.render({ canvasContext: context, viewport }).promise;
-    images.push({
+    const image = {
       src: canvas.toDataURL("image/png"),
       width: viewport.width,
       height: viewport.height,
-    });
+    };
+    images.push(image);
+
+    if (pageKey !== undefined) {
+      imageCache.set(pageKey, image);
+    }
   }
 
   return images;
@@ -565,10 +582,11 @@ async function printPdf() {
   }
 
   try {
-    await generatePdf();
+    const pages = parseSequence();
+    await generatePdf({ renderPreview: false });
     setStatus("Preparing print screen...");
     printWindow.document.write("<p>Preparing print screen...</p>");
-    const images = await renderPrintImages(state.outputBytes);
+    const images = await renderPrintImages(state.outputBytes, pages);
     writePrintDocument(printWindow, images);
     setStatus("Print dialog opened for the reordered PDF.", "success");
   } catch (error) {
