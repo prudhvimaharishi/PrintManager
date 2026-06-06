@@ -457,70 +457,14 @@ function escapeHtml(value) {
   });
 }
 
-async function renderPrintImages(pdfBytes, pageKeys = []) {
-  if (!window.pdfjsLib) {
-    throw new Error("Print renderer did not load. Check your internet connection and refresh.");
-  }
-
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
-
-  const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice(0) });
-  const pdf = await loadingTask.promise;
-  const images = [];
-  const imageCache = new Map();
-
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const pageKey = pageKeys[pageNumber - 1];
-    if (pageKey !== undefined && imageCache.has(pageKey)) {
-      images.push(imageCache.get(pageKey));
-      continue;
-    }
-
-    const page = await pdf.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 2 });
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d", { alpha: false });
-
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    await page.render({ canvasContext: context, viewport }).promise;
-    const image = {
-      src: canvas.toDataURL("image/png"),
-      width: viewport.width,
-      height: viewport.height,
-    };
-    images.push(image);
-
-    if (pageKey !== undefined) {
-      imageCache.set(pageKey, image);
-    }
-  }
-
-  return images;
-}
-
-function writePrintDocument(printWindow, images) {
-  const pages = images
-    .map(
-      (image, index) => `
-        <section class="print-page">
-          <img
-            src="${image.src}"
-            width="${Math.round(image.width)}"
-            height="${Math.round(image.height)}"
-            alt="Page ${index + 1}"
-          >
-        </section>`,
-    )
-    .join("");
-
+function writePrintDocument(printWindow, printJob) {
   printWindow.document.open();
   printWindow.document.write(`<!doctype html>
 <html>
   <head>
     <meta charset="utf-8">
-    <title>${escapeHtml(state.fileName || "Print Manager")}</title>
+    <title>${escapeHtml(printJob.fileName || "Print Manager")}</title>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"><\/script>
     <style>
       html,
       body {
@@ -535,6 +479,22 @@ function writePrintDocument(printWindow, images) {
         min-height: 100vh;
         break-after: page;
         page-break-after: always;
+      }
+
+      .loading,
+      .error {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        box-sizing: border-box;
+        font: 600 16px system-ui, sans-serif;
+        color: #334155;
+        text-align: center;
+      }
+
+      .error {
+        color: #b91c1c;
       }
 
       .print-page:last-child {
@@ -560,20 +520,96 @@ function writePrintDocument(printWindow, images) {
       }
     </style>
   </head>
-  <body>
-    ${pages}
+  <body><div class="loading" id="status">Preparing print sequence...</div>
     <script>
-      window.addEventListener("load", () => {
-        window.focus();
-        window.print();
+      window.addEventListener("load", async () => {
+        const status = document.querySelector("#status");
+
+        try {
+          if (!window.pdfjsLib) {
+            throw new Error("Print renderer did not load. Check your internet connection and refresh.");
+          }
+
+          pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+
+          const { pdfBytes, pages } = window.printJob;
+          const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
+          const pdf = await loadingTask.promise;
+          const imageCache = new Map();
+          const printPages = document.createDocumentFragment();
+
+          for (let index = 0; index < pages.length; index += 1) {
+            const pageNumber = pages[index];
+            status.textContent = \`Preparing page \${index + 1} of \${pages.length}...\`;
+
+            let image = imageCache.get(pageNumber);
+            if (!image) {
+              const page = await pdf.getPage(pageNumber);
+              const viewport = page.getViewport({ scale: 2 });
+              const canvas = document.createElement("canvas");
+              const context = canvas.getContext("2d", { alpha: false });
+
+              canvas.width = Math.ceil(viewport.width);
+              canvas.height = Math.ceil(viewport.height);
+              await page.render({ canvasContext: context, viewport }).promise;
+
+              image = {
+                src: canvas.toDataURL("image/png"),
+                width: viewport.width,
+                height: viewport.height,
+              };
+              imageCache.set(pageNumber, image);
+            }
+
+            const section = document.createElement("section");
+            const img = document.createElement("img");
+            section.className = "print-page";
+            img.src = image.src;
+            img.width = Math.round(image.width);
+            img.height = Math.round(image.height);
+            img.alt = \`Page \${index + 1}\`;
+            section.appendChild(img);
+            printPages.appendChild(section);
+          }
+
+          document.body.replaceChildren(printPages);
+          await Promise.all(
+            Array.from(document.images, (image) => image.decode()),
+          );
+          window.focus();
+          window.print();
+        } catch (error) {
+          status.className = "error";
+          status.textContent = \`Could not prepare print sequence. \${error.message}\`;
+        }
       });
     <\/script>
   </body>
 </html>`);
+  printWindow.printJob = printJob;
   printWindow.document.close();
 }
 
-async function printPdf() {
+function printPdf() {
+  const pages = parseSequence();
+  const invalidPages = pages.filter((page) => !isValidPage(page));
+
+  if (!state.originalBytes) {
+    setStatus("Upload a PDF first.", "error");
+    return;
+  }
+
+  if (pages.length === 0) {
+    setStatus("Add at least one page number.", "error");
+    return;
+  }
+
+  if (invalidPages.length > 0) {
+    setStatus(`Invalid pages: ${invalidPages.join(", ")}`, "error");
+    return;
+  }
+
   const printWindow = window.open("", "_blank");
 
   if (!printWindow) {
@@ -582,13 +618,12 @@ async function printPdf() {
   }
 
   try {
-    const pages = parseSequence();
-    await generatePdf({ renderPreview: false });
-    setStatus("Preparing print screen...");
-    printWindow.document.write("<p>Preparing print screen...</p>");
-    const images = await renderPrintImages(state.outputBytes, pages);
-    writePrintDocument(printWindow, images);
-    setStatus("Print dialog opened for the reordered PDF.", "success");
+    setStatus("Preparing print sequence in the new tab...");
+    writePrintDocument(printWindow, {
+      fileName: state.fileName,
+      pages,
+      pdfBytes: state.originalBytes.slice(0),
+    });
   } catch (error) {
     if (printWindow) {
       printWindow.close();
