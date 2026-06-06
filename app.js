@@ -2,7 +2,6 @@ const state = {
   fileName: "",
   originalBytes: null,
   pageCount: 0,
-  outputUrl: "",
   outputBytes: null,
   thumbnails: {}, // Cache of pageNumber -> canvas dataURL
   viewMode: "cards", // "cards" or "pdf"
@@ -30,13 +29,8 @@ function isValidPage(page) {
 }
 
 function clearGeneratedPdf() {
-  if (state.outputUrl) {
-    URL.revokeObjectURL(state.outputUrl);
-    state.outputUrl = "";
-  }
-
   state.outputBytes = null;
-  elements.printFrame.removeAttribute("src");
+  elements.printFrame.replaceChildren();
   elements.printFrame.hidden = true;
 }
 
@@ -54,23 +48,35 @@ function setStatus(message, type = "neutral") {
   }
 }
 
-function loadPdfPreview(url) {
-  return new Promise((resolve) => {
-    let resolved = false;
-    const finish = () => {
-      if (resolved) {
-        return;
-      }
+async function loadPdfPreview(pdfBytes) {
+  if (!window.pdfjsLib) {
+    throw new Error("PDF preview renderer did not load. Check your internet connection and refresh.");
+  }
 
-      resolved = true;
-      resolve();
-    };
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
 
-    elements.printFrame.addEventListener("load", finish, { once: true });
-    elements.printFrame.src = url;
-    elements.printFrame.hidden = false;
-    window.setTimeout(finish, 1200);
-  });
+  const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice(0) });
+  const pdf = await loadingTask.promise;
+  const previewPages = document.createDocumentFragment();
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { alpha: false });
+
+    canvas.className = "pdf-preview-page";
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    canvas.setAttribute("aria-label", `Page ${pageNumber}`);
+
+    await page.render({ canvasContext: context, viewport }).promise;
+    previewPages.appendChild(canvas);
+  }
+
+  elements.printFrame.replaceChildren(previewPages);
+  elements.printFrame.hidden = false;
 }
 
 function formatFileSize(bytes) {
@@ -415,15 +421,13 @@ async function generatePdf() {
   }
 
   const outputBytes = await outputPdf.save();
-  const blob = new Blob([outputBytes], { type: "application/pdf" });
 
   clearGeneratedPdf();
   state.outputBytes = outputBytes;
-  state.outputUrl = URL.createObjectURL(blob);
-  await loadPdfPreview(state.outputUrl);
+  await loadPdfPreview(outputBytes);
 
   setStatus(`Generated ${pages.length} page${pages.length === 1 ? "" : "s"} from ${state.fileName}.`, "success");
-  return state.outputUrl;
+  return outputBytes;
 }
 
 async function previewPdf() {
