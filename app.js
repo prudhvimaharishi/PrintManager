@@ -603,6 +603,7 @@ async function printPdf() {
     }
 
     writePrintDocument(printWindow, images);
+    resetAll();
     setStatus("Print dialog opened for the prepared sequence.", "success");
   } catch (error) {
     setStatus(error.message, "error");
@@ -619,7 +620,6 @@ function resetAll() {
   elements.pdfInput.value = "";
   elements.pageNumberInput.value = "";
   elements.copiesInput.value = "1";
-  elements.sequenceInput.value = "";
   elements.fileState.textContent = "No file selected";
   
   // Reset view mode if pdf panel is active
